@@ -1,0 +1,17 @@
+table {
+  border-spacing: 0px;
+}
+th {
+  background-color: black;
+  font-weight: bold;
+  color: lightgrey;
+  text-align: left;
+  padding: 10px;
+}
+td {
+  padding: 5px;
+  border-top: 1px solid darkgray;
+}
+tbody tr:hover {
+  background-color: lightgray;
+}
