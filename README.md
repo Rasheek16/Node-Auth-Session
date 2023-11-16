@@ -39,7 +39,7 @@ Before getting started, make sure you have the following prerequisites in place:
 
 ## Database Integration
 
-This project seamlessly integrates with SQLite for efficient data storage. Configure SQLite settings in the [Relational-db/SQLite/sqlite-config.js](Relational-db/SQLite/sqlite-config.js) file.
+This project seamlessly integrates with SQLite for efficient data storage. Configure SQLite settings in the [sqlite-config.js](sqlite-config.js) file.
 
 ## API Endpoints
 
