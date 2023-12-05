@@ -1,56 +1,131 @@
+import { validationResult } from "express-validator";
 import { getAll, remove, get, save } from "./model.js";
-import { render } from "./view.js";
-import { render as formRender } from "./form.js";
-import { readFileSync } from "fs";
+import jsonXml from "jsontoxml";
 
-export async function listAction(request, response) {
+export const listAction = async (request, response) => {
   try {
-    const data = await getAll(request.user.id);
-    const body = render(data);
-    response.send(body);
-  } catch (error) {
-    response.status(500).send("Internal Server Error");
+    const options = {
+      userId: request.auth.id,
+      sort: request.query.sort ? request.query.sort : "",
+    };
+    const movies = await getAll(options);
+    const movieResponse = {
+      movies,
+      links: getLinks(options.sort, request.baseUrl),
+    };
+    response.format({
+      xml() {
+        movieResponse.movies = movieResponse.movies.map((movie) => ({
+          movie,
+        }));
+        response.send(jsonXml(movieResponse));
+      },
+      json() {
+        response.json(movieResponse);
+      },
+      default() {
+        response.json(movieResponse);
+      },
+    });
+  } catch (e) {
+    console.error(e);
+    response.status(500).send("An error Occurred");
+    return;
   }
-}
-
-export async function removeAction(request, response) {
+};
+export const detailAction = async (request, response) => {
   try {
-    const id = parseInt(request.params.id, 10);
-    if (isNaN(id)) {
-      throw new Error("Invalid ID");
+    const movie = await get(request.params.id, request.auth.id);
+    const movieResponse = {
+      ...movie,
+      links: [
+        {
+          rel: "self",
+          href: `${request.baseUrl}/${movie.id}`,
+        },
+      ],
+    };
+
+    response.json(movieResponse);
+  } catch (e) {
+    console.error(e);
+    response.status(404).send("Resource Not found");
+    return;
+  }
+};
+export const createAction = async (request, response) => {
+  try {
+    const errors = validationResult(request);
+    if (!errors.isEmpty()) {
+      return response.status(400).json({
+        errors: errors.array(),
+      });
     }
-    await remove(id, request.user.id);
-    response.redirect(request.baseUrl);
-  } catch (error) {
-    response.status(400).send("Bad Request");
-  }
-}
-
-export async function formAction(request, response) {
-  try {
-    let movie = { id: "", title: "", year: "", public: "" };
-    if (request.params.id) {
-      movie = await get(parseInt(request.params.id), request.user.id);
-    }
-    console.log('Movie');
-    const body = formRender(movie);
-    response.send(body);
-  } catch (error) {
-    response.status(500).send("Internal Server Error");
-  }
-}
-
-export async function saveAction(request, response) {
-  try {
     const movie = {
-      id: request.body.id,
       title: request.body.title,
       year: request.body.year,
-      public: request.body.public === 1 ? 1 : 0,
+      public: parseInt(request.body.public, 10) === 1 ? 1 : 0,
     };
-    await save(movie, request.user.id);
-    response.redirect(request.baseUrl);
+
+    const newMovie = await save(movie, request.auth.id);
+    console.log(newMovie);
+    response.json(newMovie);
   } catch (error) {
-    response.status(500).send("Internal Server Error");
+    console.error(error);
+    response.status(500).send("An error Occurred");
   }
+};
+export const updateAction = async (request, response) => {
+  try {
+    const movie = {
+      id: request.params.id,
+      title: request.body.title,
+      year: request.body.year,
+      public: parseInt(request.body.public, 10) ? 1 : 0,
+    };
+    const updatedMovie = await save(movie, request.auth.id);
+    response.json(updatedMovie);
+  } catch (error) {
+    response.status(500).json(error);
+  }
+};
+export const deleteAction = async (request, response) => {
+  try {
+    const errors = validationResult(request);
+    if (!errors.isEmpty()) {
+      return response.status(401).json({ errors: errors.array() });
+    }
+    const id = parseInt(request.params.id, 10);
+    await remove(id, request.auth.id);
+
+    response.status(204).send("Removed");
+  } catch (error) {
+    console.error(error);
+    response.status(204).send("An error occurred");
+  }
+};
+function getLinks(current, base) {
+  const links = [
+    {
+      rel: "base",
+      href: base + "/",
+    },
+    {
+      rel: "'sort-ascending",
+      href: base + "/?sort=asc",
+    },
+    {
+      rel: "sort-descending",
+      href: base + "/?sort=desc",
+    },
+  ];
+
+  return links.map((link) => {
+    if (current.length > 0 && link.rel.includes(current)) {
+      link.rel = "self";
+    } else if (current.length === 0 && link.rel === "base") {
+      link.rel = "self";
+    }
+    return link;
+  });
 }

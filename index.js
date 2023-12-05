@@ -1,54 +1,35 @@
-//IMPORTS
 import express from "express";
-import { router as movieRouter } from "./movie/index.js";
 import morgan from "morgan";
-import { dirname } from "path";
-import { fileURLToPath } from "url";
-import { createWriteStream } from "fs";
-import auth from "./auth.js";
-import { ensureLoggedIn } from "connect-ensure-login";
+import { expressjwt as jwt } from "express-jwt";
+import swaggerSpec from "./swagger.js";
+import swaggerUi from "swagger-ui-express";
+import { router as movieRouter } from "./movie/index.js";
+import { router as loginRouter } from "./auth.js";
+
+
 
 const app = express();
 
-//LOGGING INCOMING REQUESTS TO ACCESS.LOG FILE
-const accessLogStream = createWriteStream("access.log", { flags: "a" });
-app.use(
-  morgan("common", {
-    immediate: true,
-    stream: accessLogStream,
-  })
-);
-
-//OPTIONS FOR HTTPS SERVER
-// const options = {
-//   key: readFileSync("Path"),
-//   cert: readFileSync("Path"),
-// };
-//FOR SENDING STATIC FILE
-app.use(express.static(`${dirname(fileURLToPath(import.meta.url))}/public`));
-
-//FOR LOGGING REQUESTS
 app.use(morgan("common", { immediate: true }));
-
-//FOR HANDLING HTML FORM INPUT
-app.use(express.urlencoded({ extended: false }));
-
-auth(app);
-
-//ROUTER SETUP
-app.use("/movie", ensureLoggedIn("./login.html"), movieRouter);
-
-//REDIRECTING TO BASE URL
+app.use(express.json());
+app.use("/login", loginRouter);
+app.use(
+  "/movie",
+  jwt({ secret: "secret", algorithms: ["HS256"] }),
+  movieRouter
+);
+app.use((err, request, response, next) => {
+  if (err.name === "UnauthorizedError") {
+    response.status(401).json("Unauthorized");
+  } else {
+    next();
+  }
+});
 app.get("/", (request, response) => {
   response.redirect("/movie");
 });
+app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
-// FOR HTTPS
 app.listen(8080, () => {
   console.log(`listening on http://localhost:8080`);
 });
-
-//FOR HTTP2
-// spdy.createServer(options, app).listen(8080, () => {
-//   console.log(`listening on https://localhost:8080`);
-// });

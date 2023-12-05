@@ -1,9 +1,12 @@
 import db from "../sqlite-config.js";
 
-export async function getAll(userId) {
+export async function getAll(options) {
   return new Promise((resolve, reject) => {
-    const query = "SELECT * FROM Movies WHERE user=? OR public = 1";
-    db.all(query, [userId], (error, results) => {
+    let query = "SELECT * FROM Movies WHERE user=? OR public = 1 ";
+    if (options.sort && ["asc", "desc"].includes(options.sort.toLowerCase())) {
+      query = query + "ORDER BY title " + options.sort;
+    }
+    db.all(query, [options.userId], (error, results) => {
       if (error) {
         reject(error);
       } else {
@@ -78,7 +81,9 @@ export async function updateMovie(movie, userId) {
 export async function save(movie, userId) {
   if (!movie.id) {
     await insertMovie(movie, userId);
+    return movie;
   } else {
     await updateMovie(movie, userId);
+    return movie;
   }
 }

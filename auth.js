@@ -1,55 +1,28 @@
-import passport from "passport";
-import expressSession from "express-session";
-import LocalStrategy from "passport-local";
+import jwt from "jsonwebtoken";
+import { Router } from "express";
 import { get } from "./sqlite-config.js";
 import { createHash } from "crypto";
-import { log } from "console";
 
-export default function (app) {
-  passport.serializeUser((user, done) => done(null, user.id));
-  passport.deserializeUser(async (id, done) => {
-    const user = await get({ id });
-    if (!user) {
-      done("User not found");
+const router = Router();
+
+router.post("/", async (request, response) => {
+  try {
+    const user = await get({
+      username: request.body.username,
+      password: createHash("md5").update(request.body.password).digest("hex"),
+    });
+    if (user) {
+      const payload = { ...user };
+      delete payload.password;
+      const token = jwt.sign(payload, "secret");
+      response.json({ token });
     } else {
-      done(null, user);
+      response.status(401).json("unauthorized");
     }
-  });
+  } catch (error) {
+    console.error(error);
+    response.status(401).json("unauthorized");
+  }
+});
 
-  passport.use(
-    new LocalStrategy(async (username, password, done) => {
-      const hash = createHash("md5").update(password).digest("hex");
-      const user = await get({ username: username, password: hash });
-      if (!user) {
-        done(null, false);
-      } else {
-        done(null, user);
-      }
-    })
-  );
-  app.use(
-    expressSession({
-      secret: "top secret",
-      resave: false,
-      saveUninitialized: false,
-    })
-  );
-
-  app.use(passport.initialize());
-  app.use(passport.session());
-
-  app.post(
-    "/login",
-    passport.authenticate("local", {
-      failureRedirect: "/login.html",
-    }),
-    (request, response) => {
-      response.redirect("/");
-    }
-  );
-
-  app.use("/logout", (request, response) => {
-    request.logout();
-    response.redirect("/");
-  });
-}
+export { router };
